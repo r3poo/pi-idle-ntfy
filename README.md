@@ -20,11 +20,11 @@ Review extension code before installing: Pi extensions run inside the Pi process
 
 ## Configure
 
-Run `/idle-ntfy setup` in Pi to enter your ntfy topic, server, alert delay, notification mode, and optional authentication. The command saves the configuration to `~/.pi/agent/idle-notification.json` with owner-only file permissions. It asks before replacing an existing configuration. After setup, the settings take effect immediately; no restart is needed. Run `/idle-ntfy mode` to switch between idle and immediate mode; the selected mode is saved across restarts.
+Run `/idle-ntfy setup` in Pi to enter your ntfy topic, server, alert delay, notification mode, and optional authentication. The command saves the configuration to `~/.pi/agent/pi-idle-ntfy.json` with owner-only file permissions. It asks before replacing an existing configuration. After setup, the settings take effect immediately; no restart is needed. Run `/idle-ntfy mode` to switch between idle and immediate mode; the selected mode is saved across restarts.
 
 The topic is required. Choose a long, unguessable topic if using the public `ntfy.sh` server; anyone who knows the topic name can subscribe or publish. By default, alerts go to `https://ntfy.sh` and are sent after 15 minutes. Run `/idle-ntfy` to show the current status, or `/idle-ntfy test` to send an immediate test notification to the configured topic.
 
-You can also create `~/.pi/agent/idle-notification.json` manually:
+You can also create `~/.pi/agent/pi-idle-ntfy.json` manually:
 
 ```json
 {

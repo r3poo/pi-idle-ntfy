@@ -6,7 +6,7 @@ import { sendNotification } from "../lib/ntfy.js";
 import { createAwaitingInputState, DEFAULTS, getLatestAssistantResponse, isAwaitingUserInput, validateConfig } from "../lib/logic.js";
 import type { NotificationConfig } from "../lib/logic.js";
 
-const CONFIG_PATH = join(getAgentDir(), "idle-notification.json");
+const CONFIG_PATH = join(getAgentDir(), "pi-idle-ntfy.json");
 const UI_PROMPT_GRACE_MS = 100;
 
 async function readConfig(): Promise<NotificationConfig> {
