@@ -1,0 +1,22 @@
+{
+  "name": "pi-idle-notification",
+  "version": "1.0.0",
+  "description": "Send an ntfy notification when a Pi agent is waiting for your input.",
+  "license": "MIT",
+  "keywords": ["pi-package", "pi-extension", "ntfy", "notifications"],
+  "type": "module",
+  "pi": {
+    "extensions": ["./extensions/idle-notification.ts"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "scripts": {
+    "test": "node --test",
+    "typecheck": "tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext --types node extensions/idle-notification.ts lib/logic.d.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.0.0"
+  }
+}
