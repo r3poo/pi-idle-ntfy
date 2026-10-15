@@ -15,6 +15,7 @@ export function validateConfig(value: unknown): NotificationConfig;
 export function getLatestAssistantResponse(entries: unknown): unknown;
 export function isAwaitingUserInput(message: unknown): boolean;
 export function createAwaitingInputState(): {
+  reset(): void;
   beginAgentRun(): void;
   settle(isAwaitingInput: boolean): void;
   beginUiPrompt(): void;

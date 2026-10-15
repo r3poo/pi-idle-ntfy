@@ -140,6 +140,17 @@ test("does not classify tool handoffs or non-final assistant stops as user promp
   assert.equal(isAwaitingUserInput(undefined), false);
 });
 
+test("session reset clears all waiting and dismissed state", () => {
+  const state = createAwaitingInputState();
+  state.beginUiPrompt();
+  state.settle(true);
+  state.dismiss();
+  state.reset();
+  assert.equal(state.isWaiting(), false);
+  assert.equal(state.isDismissed(), false);
+  assert.equal(state.shouldNotify(), false);
+});
+
 test("keyboard dismissal stays disarmed until an agent run completes", () => {
   const state = createAwaitingInputState();
   state.settle(true);

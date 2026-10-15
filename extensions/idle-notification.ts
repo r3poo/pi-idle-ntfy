@@ -138,15 +138,15 @@ export default function (pi: ExtensionAPI) {
     stopped = false;
     context = ctx;
     cancel();
-    awaitingInputState.beginAgentRun();
-    awaitingInputState.settle(false);
-    await loadConfig(ctx);
+    awaitingInputState.reset();
     if (ctx.mode === "tui") {
       unsubscribeTerminalInput = ctx.ui.onTerminalInput(() => {
         if (awaitingInputState.shouldNotify()) awaitingInputState.dismiss();
         if (pending) cancel();
+        return undefined;
       });
     }
+    await loadConfig(ctx);
   });
 
   pi.on("session_shutdown", () => {
@@ -154,13 +154,16 @@ export default function (pi: ExtensionAPI) {
     unsubscribeTerminalInput?.();
     unsubscribeTerminalInput = undefined;
     cancel();
-    awaitingInputState.beginAgentRun();
+    awaitingInputState.reset();
     context = undefined;
   });
 
   pi.on("message_start", (event, ctx) => {
     context = ctx;
-    if ((event.message as { role?: string }).role === "user") cancel();
+    if ((event.message as { role?: string }).role === "user") {
+      awaitingInputState.dismiss();
+      cancel();
+    }
   });
 
   pi.on("agent_start", (_event, ctx) => {
@@ -191,6 +194,7 @@ export default function (pi: ExtensionAPI) {
     context = ctx;
     if (stopped || !config || config.mode !== "immediate" || suppressUiPromptNotifications) return;
     awaitingInputState.beginUiPrompt();
+    if (!awaitingInputState.shouldNotify()) return;
     const promptDescription = `an interactive ${event.kind} prompt`;
     // Pi emits this event via queueMicrotask before showing the dialog, so defer sending
     // until the event loop gives the prompt a chance to resolve.
@@ -216,7 +220,7 @@ export default function (pi: ExtensionAPI) {
     }
     ctx.ui.notify(
       config
-        ? `${config.mode === "immediate" ? "Immediate" : "Idle"} ntfy notifications are ready. ${config.mode === "immediate" ? "Pi sends alerts when a response settles awaiting your input and when an extension UI prompt opens." : `Alerts are sent after ${config.delayMinutes} minutes when Pi settles awaiting your input.`} A new user message or agent run cancels a pending alert.`
+        ? `${config.mode === "immediate" ? "Immediate" : "Idle"} ntfy notifications are ready. ${config.mode === "immediate" ? "Pi sends alerts when a response settles awaiting your input and when an extension UI prompt opens." : `Alerts are sent after ${config.delayMinutes} minutes when Pi settles awaiting your input.`} Terminal input cancels an alert while Pi is waiting; alerts re-arm after the agent runs and settles again.`
         : "Idle ntfy notifications are not ready yet.",
       config ? "info" : "warning",
     );
