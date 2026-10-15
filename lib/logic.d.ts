@@ -22,6 +22,8 @@ export function createAwaitingInputState(): {
   endUiPrompt(): void;
   dismiss(): void;
   isWaiting(): boolean;
+  isAgentWaiting(): boolean;
+  isUiPromptWaiting(): boolean;
   isDismissed(): boolean;
   shouldNotify(): boolean;
 };

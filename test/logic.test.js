@@ -147,8 +147,28 @@ test("session reset clears all waiting and dismissed state", () => {
   state.dismiss();
   state.reset();
   assert.equal(state.isWaiting(), false);
+  assert.equal(state.isAgentWaiting(), false);
+  assert.equal(state.isUiPromptWaiting(), false);
   assert.equal(state.isDismissed(), false);
   assert.equal(state.shouldNotify(), false);
+});
+
+test("UI prompt waiting is independent from assistant-response waiting", () => {
+  const state = createAwaitingInputState();
+  state.beginUiPrompt();
+  assert.equal(state.isWaiting(), true);
+  assert.equal(state.isAgentWaiting(), false);
+  assert.equal(state.isUiPromptWaiting(), true);
+
+  state.settle(true);
+  assert.equal(state.isAgentWaiting(), true);
+  assert.equal(state.isUiPromptWaiting(), true);
+
+  state.endUiPrompt();
+  assert.equal(state.isWaiting(), true);
+  assert.equal(state.isAgentWaiting(), true);
+  assert.equal(state.isUiPromptWaiting(), false);
+  assert.equal(state.shouldNotify(), true);
 });
 
 test("keyboard dismissal stays disarmed until an agent run completes", () => {

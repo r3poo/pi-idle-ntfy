@@ -7,6 +7,7 @@ import { createAwaitingInputState, DEFAULTS, getLatestAssistantResponse, isAwait
 import type { NotificationConfig } from "../lib/logic.js";
 
 const CONFIG_PATH = join(getAgentDir(), "idle-notification.json");
+const UI_PROMPT_GRACE_MS = 100;
 
 async function readConfig(): Promise<NotificationConfig> {
   try {
@@ -175,42 +176,73 @@ export default function (pi: ExtensionAPI) {
   pi.on("agent_settled", (event, ctx) => {
     context = ctx;
     if (stopped || event.aborted || !config) return;
-    const isWaiting = isAwaitingUserInput(getLatestAssistantResponse(ctx.sessionManager.getBranch()));
-    awaitingInputState.settle(isWaiting);
-    if (isWaiting) {
-      if (!awaitingInputState.shouldNotify()) return;
+    const responseWaiting = isAwaitingUserInput(getLatestAssistantResponse(ctx.sessionManager.getBranch()));
+    awaitingInputState.settle(responseWaiting);
+    if (!awaitingInputState.shouldNotify()) {
+      if (pending) cancel();
+      return;
+    }
+
+    if (config.mode === "immediate" && responseWaiting) {
       const promptGeneration = uiPromptNotificationGeneration;
-      if (promptGeneration !== undefined) {
-        if (pending && generation === promptGeneration) cancel();
-        uiPromptNotificationGeneration = undefined;
+      if (promptGeneration !== undefined && pending && generation === promptGeneration) cancel();
+      uiPromptNotificationGeneration = undefined;
+      schedule(ctx, "immediate");
+      return;
+    }
+
+    // Keep an existing timer: it may have started for the prompt before the response settled.
+    if (!pending) {
+      const promptWaiting = !responseWaiting && awaitingInputState.isWaiting();
+      const delayMs = promptWaiting
+        ? config.mode === "idle"
+          ? Math.max(UI_PROMPT_GRACE_MS, config.delayMinutes * 60_000)
+          : UI_PROMPT_GRACE_MS
+        : undefined;
+      const promptBody = promptWaiting && config.mode === "immediate"
+        ? "Pi is waiting for your response to an interactive prompt."
+        : undefined;
+      if (promptWaiting) {
+        uiPromptNotificationGeneration = schedule(ctx, config.mode, promptBody, delayMs);
+      } else {
+        schedule(ctx, config.mode);
       }
-      schedule(ctx, config.mode === "immediate" ? "immediate" : "idle");
-    } else if (config.mode === "immediate" && pending) {
-      cancel();
     }
   });
 
   pi.on("ui_prompt_start", (event, ctx) => {
     context = ctx;
-    if (stopped || !config || config.mode !== "immediate" || suppressUiPromptNotifications) return;
+    if (stopped || !config || suppressUiPromptNotifications) return;
     awaitingInputState.beginUiPrompt();
-    if (!awaitingInputState.shouldNotify()) return;
+    if (!awaitingInputState.shouldNotify() || pending) return;
+
     const promptDescription = `an interactive ${event.kind} prompt`;
-    // Pi emits this event via queueMicrotask before showing the dialog, so defer sending
-    // until the event loop gives the prompt a chance to resolve.
-    uiPromptNotificationGeneration = schedule(
-      ctx,
-      "immediate",
-      `Pi is waiting for your response to ${promptDescription}.`,
-      100,
-    );
+    // Defer immediate prompts so quickly resolved dialogs do not send stale alerts.
+    // Idle mode keeps the configured delay, with 100 ms as a minimum when it is zero.
+    if (config.mode === "immediate") {
+      uiPromptNotificationGeneration = schedule(
+        ctx,
+        "immediate",
+        `Pi is waiting for your response to ${promptDescription}.`,
+        UI_PROMPT_GRACE_MS,
+      );
+    } else {
+      uiPromptNotificationGeneration = schedule(
+        ctx,
+        "idle",
+        undefined,
+        Math.max(UI_PROMPT_GRACE_MS, config.delayMinutes * 60_000),
+      );
+    }
   });
 
   pi.on("ui_prompt_end", () => {
     awaitingInputState.endUiPrompt();
     const promptGeneration = uiPromptNotificationGeneration;
     uiPromptNotificationGeneration = undefined;
-    if (promptGeneration !== undefined && pending && generation === promptGeneration) cancel();
+    if (promptGeneration !== undefined && pending && generation === promptGeneration && !awaitingInputState.isWaiting()) {
+      cancel();
+    }
   });
 
   const showStatus = (ctx: ExtensionContext) => {
@@ -220,7 +252,7 @@ export default function (pi: ExtensionAPI) {
     }
     ctx.ui.notify(
       config
-        ? `${config.mode === "immediate" ? "Immediate" : "Idle"} ntfy notifications are ready. ${config.mode === "immediate" ? "Pi sends alerts when a response settles awaiting your input and when an extension UI prompt opens." : `Alerts are sent after ${config.delayMinutes} minutes when Pi settles awaiting your input.`} Terminal input cancels an alert while Pi is waiting; alerts re-arm after the agent runs and settles again.`
+        ? `${config.mode === "immediate" ? "Immediate" : "Idle"} ntfy notifications are ready. ${config.mode === "immediate" ? "Pi sends alerts when a response settles awaiting your input and when an extension UI prompt opens." : `Alerts are sent after ${config.delayMinutes} minutes when Pi settles awaiting your input or an extension UI prompt remains open.`} Terminal input cancels an alert while Pi is waiting; alerts re-arm after the agent runs and settles again.`
         : "Idle ntfy notifications are not ready yet.",
       config ? "info" : "warning",
     );

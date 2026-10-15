@@ -30,7 +30,7 @@ You can also create `~/.pi/agent/idle-notification.json` manually:
 Optional settings:
 
 - `server`: ntfy server URL, for example `https://ntfy.example.com`.
-- `delayMinutes`: delay from Pi settling while awaiting input in `idle` mode; number from `0` to `10080` (7 days). Zero sends immediately.
+- `delayMinutes`: delay from Pi settling while awaiting input, or from an extension UI prompt opening, in `idle` mode; number from `0` to `10080` (7 days). Zero sends immediately for responses; UI prompt alerts retain a 100 ms grace period to avoid stale alerts for quickly resolved prompts.
 - `mode`: `idle` (default) waits `delayMinutes` after Pi settles awaiting your input; `immediate` sends as soon as Pi settles awaiting your input and when an extension-owned UI prompt opens. Mode changes made with `/idle-ntfy mode` persist in the configuration file.
 - `token`: ntfy bearer token. Alternatively, supply both `username` and `password` for basic authentication. Do not commit credentials to a project repository.
 
@@ -50,7 +50,7 @@ After manually creating or changing the configuration, restart Pi or use `/reloa
 ## Behavior and limitations
 
 - Both modes check Pi's last assistant message when the agent settles. A completed text response (`stopReason: "stop"`) without a tool call counts as awaiting your input; tool handoffs, errors, and aborted runs do not trigger this response alert.
-- In `idle` mode, the extension waits the configured delay before sending the response alert. In `immediate` mode, it sends that alert without waiting and also alerts when Pi opens an extension-owned UI prompt (for example, a `confirm` or `select` dialog). Prompt alerts are deferred by 100 milliseconds so a quickly resolved prompt does not send a stale notification.
+- In `idle` mode, the extension waits the configured delay before sending an alert for either a completed response or an extension-owned UI prompt that remains open. If a prompt opens while a response alert is already pending, the existing timer is kept. In `immediate` mode, response alerts are sent without waiting and prompt alerts are deferred by 100 milliseconds so a quickly resolved prompt does not send a stale notification. A prompt that closes before an idle alert is due cancels that alert unless Pi is still waiting for a completed response.
 - Any terminal input while Pi is waiting cancels the pending alert, including non-message keys such as arrows and control-key combinations. The alert stays disarmed while Pi is waiting and is re-armed only after the agent runs and settles again waiting for input. A new user message, a new agent run, session replacement, reload, or shutdown also cancels a pending alert. Keyboard activity detection is available in interactive TUI mode only; a modifier key pressed by itself may not produce terminal input.
 - Alerts do not include prompt or response contents. Idle alerts include the working-directory path and elapsed delay; immediate alerts use a generic attention title and may identify the type of UI prompt.
 - Pi's public extension API does not identify whether an extension-owned UI prompt is specifically a permission approval; immediate mode therefore alerts for all such prompts without labeling them as approvals. Built-in or third-party permission prompts that do not use Pi's extension UI prompt events may not be detected. Model-generated questions and prose requests for permission are not a structured signal, so any final assistant response awaiting a user turn is treated as potentially actionable.
