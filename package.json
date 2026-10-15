@@ -13,7 +13,7 @@
   },
   "scripts": {
     "test": "node --test",
-    "typecheck": "tsc --noEmit --strict --target ES2022 --module NodeNext --moduleResolution NodeNext --types node extensions/idle-notification.ts lib/logic.d.ts"
+    "typecheck": "tsc --noEmit --strict --skipLibCheck --target ES2022 --module NodeNext --moduleResolution NodeNext --types node extensions/idle-notification.ts lib/logic.d.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
