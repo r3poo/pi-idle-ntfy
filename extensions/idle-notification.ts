@@ -1,4 +1,4 @@
-import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { ExtensionInputComponent, getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { randomUUID } from "node:crypto";
 import { access, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -8,6 +8,21 @@ import type { NotificationConfig } from "../lib/logic.ts";
 
 const CONFIG_PATH = join(getAgentDir(), "pi-idle-ntfy.json");
 const UI_PROMPT_GRACE_MS = 100;
+
+async function promptInput(
+  ctx: ExtensionContext,
+  title: string,
+  initialValue: string,
+  placeholder?: string,
+): Promise<string | undefined> {
+  if (ctx.mode === "tui") {
+    return ctx.ui.custom<string | undefined>((_tui, _theme, _keybindings, done) =>
+      new ExtensionInputComponent(title, placeholder, done, () => done(undefined), { initialValue }),
+    );
+  }
+  if (initialValue) return ctx.ui.editor(title, initialValue);
+  return ctx.ui.input(title, placeholder);
+}
 
 function formatRemainingTime(delayMs: number): string {
   const totalSeconds = Math.ceil(Math.max(0, delayMs) / 1000);
@@ -362,26 +377,43 @@ export default function (pi: ExtensionAPI) {
           if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         }
 
-        const topic = await ctx.ui.input("ntfy topic (required)", "Choose a private, unguessable topic");
+        const topic = await promptInput(
+          ctx,
+          "ntfy topic (required)",
+          config?.topic ?? "",
+          "Choose a private, unguessable topic",
+        );
         if (topic === undefined) return;
-        const serverInput = await ctx.ui.input("ntfy server", DEFAULTS.server);
+        const serverInput = await promptInput(ctx, "ntfy server", config?.server ?? "", DEFAULTS.server);
         if (serverInput === undefined) return;
-        const delayInput = await ctx.ui.input("Alert delay in minutes", String(DEFAULTS.delayMinutes));
+        const delayInput = await promptInput(
+          ctx,
+          "Alert delay in minutes",
+          config?.delayMinutes === undefined ? "" : String(config.delayMinutes),
+          String(DEFAULTS.delayMinutes),
+        );
         if (delayInput === undefined) return;
-        const authMethod = await ctx.ui.select("ntfy authentication", ["None", "Bearer token", "Username and password"]);
+        const authMethods = ["None", "Bearer token", "Username and password"];
+        const currentAuthMethod = config?.token !== undefined
+          ? "Bearer token"
+          : config?.username !== undefined
+            ? "Username and password"
+            : "None";
+        const authOptions = [currentAuthMethod, ...authMethods.filter((method) => method !== currentAuthMethod)];
+        const authMethod = await ctx.ui.select("ntfy authentication", authOptions);
         if (authMethod === undefined) return;
 
         let token: string | undefined;
         let username: string | undefined;
         let password: string | undefined;
         if (authMethod === "Bearer token") {
-          const value = await ctx.ui.input("ntfy bearer token");
+          const value = await promptInput(ctx, "ntfy bearer token", config?.token ?? "");
           if (value === undefined) return;
           token = value.trim();
         } else if (authMethod === "Username and password") {
-          const userValue = await ctx.ui.input("ntfy username");
+          const userValue = await promptInput(ctx, "ntfy username", config?.username ?? "");
           if (userValue === undefined) return;
-          const passwordValue = await ctx.ui.input("ntfy password");
+          const passwordValue = await promptInput(ctx, "ntfy password", config?.password ?? "");
           if (passwordValue === undefined) return;
           username = userValue.trim();
           password = passwordValue;
@@ -390,7 +422,10 @@ export default function (pi: ExtensionAPI) {
         }
 
         const delayText = delayInput.trim();
-        const selectedMode = await ctx.ui.select("ntfy notification mode", ["Idle: wait before alerting", "Immediate: alert when attention is needed"]);
+        const modeOptions = config?.mode === "immediate"
+          ? ["Immediate: alert when attention is needed", "Idle: wait before alerting"]
+          : ["Idle: wait before alerting", "Immediate: alert when attention is needed"];
+        const selectedMode = await ctx.ui.select("ntfy notification mode", modeOptions);
         if (selectedMode === undefined) return;
         const mode = selectedMode.startsWith("Immediate:") ? "immediate" : selectedMode.startsWith("Idle:") ? "idle" : undefined;
         if (!mode) return;
