@@ -9,6 +9,14 @@ import type { NotificationConfig } from "../lib/logic.js";
 const CONFIG_PATH = join(getAgentDir(), "pi-idle-ntfy.json");
 const UI_PROMPT_GRACE_MS = 100;
 
+function formatRemainingTime(delayMs: number): string {
+  const totalSeconds = Math.ceil(Math.max(0, delayMs) / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return hours > 0 ? `${hours}h ${minutes}m ${seconds}s` : `${minutes}m ${seconds}s`;
+}
+
 async function readConfig(): Promise<NotificationConfig> {
   try {
     return validateConfig(JSON.parse(await readFile(CONFIG_PATH, "utf8")));
@@ -40,6 +48,7 @@ export default function (pi: ExtensionAPI) {
   let config: NotificationConfig | undefined;
   let configError: string | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let countdownInterval: ReturnType<typeof setInterval> | undefined;
   let requestController: AbortController | undefined;
   let stopped = true;
   let pending = false;
@@ -56,6 +65,8 @@ export default function (pi: ExtensionAPI) {
     uiPromptNotificationGeneration = undefined;
     if (timer) clearTimeout(timer);
     timer = undefined;
+    if (countdownInterval) clearInterval(countdownInterval);
+    countdownInterval = undefined;
     requestController?.abort();
     requestController = undefined;
     context?.ui.setStatus("idle-notification", undefined);
@@ -110,8 +121,21 @@ export default function (pi: ExtensionAPI) {
     context = ctx;
     const ownGeneration = generation;
     const delayMs = delayMsOverride ?? (mode === "immediate" ? 0 : config.delayMinutes * 60_000);
-    context.ui.setStatus("idle-notification", mode === "immediate" ? "ntfy alert now" : `ntfy alert in ${config.delayMinutes}m`);
+    if (mode === "immediate" || delayMs <= 0) {
+      context.ui.setStatus("idle-notification", "ntfy alert now");
+    } else {
+      const deadline = Date.now() + delayMs;
+      const updateCountdown = () => {
+        context?.ui.setStatus("idle-notification", `ntfy alert in ${formatRemainingTime(deadline - Date.now())}`);
+      };
+      updateCountdown();
+      countdownInterval = setInterval(updateCountdown, 1000);
+      countdownInterval.unref?.();
+    }
     timer = setTimeout(() => {
+      if (countdownInterval) clearInterval(countdownInterval);
+      countdownInterval = undefined;
+      context?.ui.setStatus("idle-notification", "ntfy alert sending…");
       const body = mode === "immediate" ? immediateBody ?? `A Pi agent in ${ctx.cwd} has finished a response and is waiting for your input.` : undefined;
       void postAlert(ownGeneration, mode === "immediate" ? "Pi needs your attention" : undefined, body);
     }, delayMs);
