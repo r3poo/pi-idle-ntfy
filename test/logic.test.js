@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createAwaitingInputState, getLatestAssistantResponse, isAwaitingUserInput, validateConfig } from "../lib/logic.js";
-import { sendNotification } from "../lib/ntfy.js";
+import { createAwaitingInputState, getLatestAssistantResponse, isAwaitingUserInput, validateConfig } from "../lib/logic.ts";
+import { sendNotification } from "../lib/ntfy.ts";
 
 test("sends ntfy notifications with bearer auth and encoded topic", async (t) => {
   const originalFetch = globalThis.fetch;

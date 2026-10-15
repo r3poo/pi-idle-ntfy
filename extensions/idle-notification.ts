@@ -2,9 +2,9 @@ import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil
 import { randomUUID } from "node:crypto";
 import { access, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { sendNotification } from "../lib/ntfy.js";
-import { createAwaitingInputState, DEFAULTS, getLatestAssistantResponse, isAwaitingUserInput, validateConfig } from "../lib/logic.js";
-import type { NotificationConfig } from "../lib/logic.js";
+import { sendNotification } from "../lib/ntfy.ts";
+import { createAwaitingInputState, DEFAULTS, getLatestAssistantResponse, isAwaitingUserInput, validateConfig } from "../lib/logic.ts";
+import type { NotificationConfig } from "../lib/logic.ts";
 
 const CONFIG_PATH = join(getAgentDir(), "pi-idle-ntfy.json");
 const UI_PROMPT_GRACE_MS = 100;

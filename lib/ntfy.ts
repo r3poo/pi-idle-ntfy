@@ -1,6 +1,13 @@
+import type { NotificationConfig } from "./logic.js";
+
 const NOTIFY_TIMEOUT_MS = 5_000;
 
-export async function sendNotification(config, title, body, signal) {
+export async function sendNotification(
+  config: NotificationConfig,
+  title: string,
+  body: string,
+  signal?: AbortSignal,
+): Promise<void> {
   const headers = new Headers({
     Title: title,
     Tags: "robot,eyes",

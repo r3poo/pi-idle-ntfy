@@ -1,11 +1,36 @@
+export type NotificationMode = "idle" | "immediate";
+
+export interface NotificationConfig {
+  topic: string;
+  server: string;
+  delayMinutes: number;
+  mode: NotificationMode;
+  token?: string;
+  username?: string;
+  password?: string;
+}
+
 export const DEFAULTS = Object.freeze({
   server: "https://ntfy.sh",
   delayMinutes: 15,
-  mode: "idle",
+  mode: "idle" as const,
 });
 
-export function validateConfig(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function optionalCredential(value: Record<string, unknown>, key: "token" | "username" | "password"): string | undefined {
+  const credential = value[key];
+  if (credential === undefined) return undefined;
+  if (typeof credential !== "string" || credential === "") {
+    throw new Error(`"${key}" must be a non-empty string when provided.`);
+  }
+  return credential;
+}
+
+export function validateConfig(value: unknown): NotificationConfig {
+  if (!isRecord(value)) {
     throw new Error("configuration must be a JSON object");
   }
   if (typeof value.topic !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(value.topic)) {
@@ -13,8 +38,9 @@ export function validateConfig(value) {
   }
 
   const server = value.server ?? DEFAULTS.server;
-  let parsedServer;
+  let parsedServer: URL;
   try {
+    if (typeof server !== "string") throw new TypeError("server must be a string");
     parsedServer = new URL(server);
   } catch {
     throw new Error('"server" must be an absolute HTTP or HTTPS URL.');
@@ -33,12 +59,10 @@ export function validateConfig(value) {
     throw new Error('"mode" must be either "idle" or "immediate".');
   }
 
-  for (const key of ["token", "username", "password"]) {
-    if (value[key] !== undefined && (typeof value[key] !== "string" || value[key] === "")) {
-      throw new Error(`"${key}" must be a non-empty string when provided.`);
-    }
-  }
-  if ((value.username === undefined) !== (value.password === undefined)) {
+  const token = optionalCredential(value, "token");
+  const username = optionalCredential(value, "username");
+  const password = optionalCredential(value, "password");
+  if ((username === undefined) !== (password === undefined)) {
     throw new Error('"username" and "password" must be provided together.');
   }
 
@@ -47,37 +71,55 @@ export function validateConfig(value) {
     server: parsedServer.toString().replace(/\/$/, ""),
     delayMinutes,
     mode,
-    ...(value.token === undefined ? {} : { token: value.token }),
-    ...(value.username === undefined ? {} : { username: value.username, password: value.password }),
+    ...(token === undefined ? {} : { token }),
+    ...(username === undefined || password === undefined ? {} : { username, password }),
   };
 }
 
-export function getLatestAssistantResponse(entries) {
+export type AssistantMessage = Record<string, unknown> & { role: "assistant" };
+
+export function getLatestAssistantResponse(entries: unknown): AssistantMessage | undefined {
   if (!Array.isArray(entries)) return undefined;
   let latestUserIndex = -1;
   for (let i = entries.length - 1; i >= 0; i--) {
-    const entry = entries[i];
-    if (entry?.type === "message" && entry.message?.role === "user") {
+    const entry: unknown = entries[i];
+    if (isRecord(entry) && entry.type === "message" && isRecord(entry.message) && entry.message.role === "user") {
       latestUserIndex = i;
       break;
     }
   }
   for (let i = entries.length - 1; i > latestUserIndex; i--) {
-    const entry = entries[i];
-    if (entry?.type === "message" && entry.message?.role === "assistant") return entry.message;
+    const entry: unknown = entries[i];
+    if (isRecord(entry) && entry.type === "message" && isRecord(entry.message) && entry.message.role === "assistant") {
+      return entry.message as AssistantMessage;
+    }
   }
   return undefined;
 }
 
-export function isAwaitingUserInput(message) {
-  if (!message || message.role !== "assistant" || message.stopReason !== "stop" || !Array.isArray(message.content)) {
+export function isAwaitingUserInput(message: unknown): boolean {
+  if (!isRecord(message) || message.role !== "assistant" || message.stopReason !== "stop" || !Array.isArray(message.content)) {
     return false;
   }
   // Tool handoffs are not user-facing completions; Pi may still need to run the tool and continue.
-  return !message.content.some((block) => block && typeof block === "object" && block.type === "toolCall");
+  return !message.content.some((block: unknown) => isRecord(block) && block.type === "toolCall");
 }
 
-export function createAwaitingInputState() {
+export interface AwaitingInputState {
+  reset(): void;
+  beginAgentRun(): void;
+  settle(isAwaitingInput: boolean): void;
+  beginUiPrompt(): void;
+  endUiPrompt(): void;
+  dismiss(): void;
+  isWaiting(): boolean;
+  isAgentWaiting(): boolean;
+  isUiPromptWaiting(): boolean;
+  isDismissed(): boolean;
+  shouldNotify(): boolean;
+}
+
+export function createAwaitingInputState(): AwaitingInputState {
   let agentWaiting = false;
   let uiPromptWaiting = false;
   let dismissed = false;

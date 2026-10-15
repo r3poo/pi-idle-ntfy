@@ -66,5 +66,6 @@ After manually creating or changing the configuration, restart Pi or use `/reloa
 ## Development
 
 ```sh
-npm test
+pnpm test
+pnpm typecheck
 ```
