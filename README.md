@@ -10,7 +10,13 @@ From the package directory:
 pi install .
 ```
 
-Or install this package from npm / git when published. Review extension code before installing: Pi extensions run inside the Pi process.
+Or directly from git:
+```sh
+pi install git:https://github.com/r3poo/pi-idle-ntfy
+```
+
+
+Review extension code before installing: Pi extensions run inside the Pi process.
 
 ## Configure
 
