@@ -109,9 +109,7 @@ export default function (pi: ExtensionAPI) {
         pending = false;
         uiPromptNotificationGeneration = undefined;
         context?.ui.setStatus("idle-notification", undefined);
-        const message = `${new Date().toLocaleString()} — Sent ntfy alert: ${title}.`;
-        console.info(`[idle-notification] ${message}`);
-        if (currentContext.hasUI) currentContext.ui.notify(message, "info");
+        if (currentContext.hasUI) currentContext.ui.notify(`${new Date().toLocaleString()} — Sent ntfy alert: ${title}.`, "info");
       }
     } catch (error) {
       if (generation === ownGeneration && pending) {
